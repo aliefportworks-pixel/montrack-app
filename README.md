@@ -35,4 +35,5 @@ node test-live.js         # e2e ke backend Dev (butuh internet; tunggu cooldown 
 
 ## Deploy FE
 
-Push ke `main` → GitHub Actions menjalankan test lalu `firebase deploy` (secret `FIREBASE_TOKEN`).
+- **Live**: https://montrack-app-2026.web.app (Firebase project `montrack-app-2026`)
+- Push ke `main` → GitHub Actions menjalankan test lalu `firebase deploy` (secret `FIREBASE_TOKEN`).
