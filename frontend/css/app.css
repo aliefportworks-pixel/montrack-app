@@ -1,0 +1,112 @@
+/* Montrack design tokens — see design.md */
+:root {
+  --accent-gradient: linear-gradient(135deg, #A588F8 0%, #F6A085 50%, #60C3FF 100%);
+}
+
+html,
+body {
+  background: #000000;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Mesh / aurora gradient card (design.md — Visual Accent) */
+.mesh-card {
+  position: relative;
+  overflow: hidden;
+  background-color: #1c1c1e;
+  background-image:
+    radial-gradient(ellipse 80% 70% at 15% 20%, rgba(165, 136, 248, 0.95) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 80% at 85% 15%, rgba(96, 195, 255, 0.9) 0%, transparent 55%),
+    radial-gradient(ellipse 90% 70% at 70% 90%, rgba(246, 160, 133, 0.95) 0%, transparent 55%),
+    radial-gradient(ellipse 60% 60% at 20% 85%, rgba(48, 48, 52, 0.9) 0%, transparent 60%);
+}
+
+.mesh-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.08) 0%, rgba(0, 0, 0, 0.32) 100%);
+  pointer-events: none;
+}
+
+.mesh-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Gradient accent text / bar */
+.gradient-text {
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.gradient-fill {
+  background: var(--accent-gradient);
+}
+
+/* Hide scrollbars on horizontal chips */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Page transitions — NFR: minimal 300ms fade/slide */
+.page-enter-active,
+.page-leave-active {
+  transition: opacity 300ms ease, transform 300ms ease;
+}
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 250ms ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* Touch targets — NFR: minimal 44x44px */
+button,
+a,
+select,
+input[type='date'],
+input[type='checkbox'] {
+  min-height: 44px;
+}
+
+button {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input,
+select,
+textarea {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Remove date picker default icon color clash on dark bg */
+input[type='date']::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.6;
+  cursor: pointer;
+}
+
+/* Bar chart */
+.bar {
+  transition: height 300ms ease, background 300ms ease;
+}

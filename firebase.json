@@ -1,0 +1,13 @@
+{
+  "hosting": {
+    "public": "frontend",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "cleanUrls": true,
+    "headers": [
+      {
+        "source": "**/*.@(js|css|png|jpg|jpeg|gif|svg|webp|woff2)",
+        "headers": [{ "key": "Cache-Control", "value": "max-age=3600" }]
+      }
+    ]
+  }
+}
