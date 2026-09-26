@@ -4,7 +4,7 @@ Aplikasi pencatat keuangan pribadi — SPA Vue 3 (single HTML) + backend Google 
 
 ## Struktur
 
-- `frontend/` — SPA (Vue 3 CDN + Tailwind CDN, hash router, mock data)
+- `frontend/` — SPA (Vue 3 CDN + Tailwind CDN, hash router; data live ke Google Sheets via GAS)
 - `backend/` — Google Apps Script via CLASP (`Code.gs`, `routes.gs`, `utils/`)
 - `test-*.js` — skrip verifikasi kontrak (Node.js lokal, bukan bagian stack)
 - `AGENTS.md` — aturan & workflow proyek (wajib dibaca agent)
@@ -15,7 +15,9 @@ Aplikasi pencatat keuangan pribadi — SPA Vue 3 (single HTML) + backend Google 
 npx -y serve frontend -l 3000
 ```
 
-Buka http://localhost:3000 — login mock: `ayu@montrack.id` / password `montrack123` (atau daftar email baru). Jangan buka `fetch` via `file://`.
+Buka http://localhost:3000 — mode **live** (data tersimpan di Google Sheets): daftar email baru di `#/daftar` lalu login (atau pakai akun yang sudah ada). Jangan buka `fetch` via `file://`.
+
+Untuk demo **offline** (tanpa backend): ubah `USE_MOCK` jadi `true` di `frontend/js/services/api.js` — data hanya di localStorage browser (`montrack_mock_v2`), contoh: `ayu@montrack.id` / `montrack123`.
 
 ## Verifikasi
 

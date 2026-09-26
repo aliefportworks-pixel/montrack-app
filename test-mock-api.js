@@ -8,7 +8,12 @@ global.navigator = { onLine: true };
 
 const root = path.join(__dirname, 'frontend');
 for (const f of ['mock/data.js', 'js/utils.js', 'js/services/api.js']) {
-  eval(fs.readFileSync(path.join(root, f), 'utf8'));
+  let src = fs.readFileSync(path.join(root, f), 'utf8');
+  if (f.endsWith('services/api.js')) {
+    // default produksi USE_MOCK=false — paksa mock untuk uji kontrak mock
+    src = src.replace('var USE_MOCK = false', 'var USE_MOCK = true');
+  }
+  eval(src);
 }
 
 (async () => {

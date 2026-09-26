@@ -34,9 +34,14 @@
  *
  * Catatan: sajikan FE via HTTP (firebase serve / npx serve / clasp).
  * Membuka index.html via file:// memblokir fetch mock data.
+ *
+ * FLAG LIVE/MOCK: default `false` = produksi, semua data (login, transaksi,
+ * kategori) disimpan ke Google Sheets via backend GAS. Ubah ke `true` HANYA
+ * untuk demo/offline lokal (data sementara di localStorage `montrack_mock_v2`,
+ * tidak pernah terkirim ke server).
  */
 (function () {
-  var USE_MOCK = true;
+  var USE_MOCK = false;
   var API_BASE =
     'https://script.google.com/macros/s/AKfycbw-TVXZP85v1QW--6vZ6Gk_8K1iNbhANWEeB69Z1mPqkoUdAzHQsadtC_KtTq3taqxc/exec';
   var API_KEY = '94a0f2417c1141fc8d74a8617bc7becb';

@@ -48,7 +48,7 @@ Dokumen ini berisi instruksi dan workflow wajib untuk AI agent. Setiap agent waj
 
 ### 2.4 Mockup Data System
 - Frontend HARUS dapat berjalan secara independen dari Backend menggunakan Mock Data.
-- Sediakan flag `USE_MOCK: true` di service API (saat ini default tetap `true`; ganti ke `false` hanya untuk testing live).
+- Sediakan flag `USE_MOCK: false` di service API (saat ini **default `false`** = produksi, semua data ke Google Sheets via GAS; ganti ke `true` HANYA untuk demo/offline lokal).
 - Jika `USE_MOCK` aktif, aplikasi merender data dari file mock statis lokal (`./mock/data.js`).
 - Format response Mock Data harus 100% mereplika format response dari Backend.
 - **Mock dipersist ke `localStorage['montrack_mock_v2']`** (users + categories + transactions) agar akun hasil daftar dan data bertahan saat reload — tanpa persistensi, user mock tidak bisa login ulang. Guard `typeof localStorage === 'undefined'` (test Node tetap pakai seed segar). Ganti versi key bila struktur mock berubah.
