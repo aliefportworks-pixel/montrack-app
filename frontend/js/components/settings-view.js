@@ -14,6 +14,9 @@ window.SettingsView = {
     logout: function () {
       var self = this;
       this.actions.askConfirm({
+        title: 'Keluar dari sesi?',
+        icon: 'logout',
+        tone: 'primary',
         message: 'Anda akan keluar dari sesi ini. Data tidak akan hilang.',
         confirmLabel: 'Keluar',
         onConfirm: function () {

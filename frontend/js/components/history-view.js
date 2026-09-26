@@ -55,6 +55,9 @@ window.HistoryView = {
     onDelete: function (tx) {
       var self = this;
       this.actions.askConfirm({
+        title: 'Hapus transaksi?',
+        icon: 'trash',
+        tone: 'danger',
         message:
           'Transaksi "' +
           (tx.note || tx.category) +

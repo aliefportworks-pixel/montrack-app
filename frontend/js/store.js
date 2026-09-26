@@ -82,6 +82,10 @@
 
     askConfirm: function (options) {
       store.confirm = {
+        /* default = gaya lama modal hapus transaksi (lihat confirm-modal.js) */
+        title: options.title || 'Hapus transaksi?',
+        icon: options.icon || 'trash',
+        tone: options.tone || 'danger',
         message: options.message,
         confirmLabel: options.confirmLabel || 'Hapus',
         onConfirm: options.onConfirm,
