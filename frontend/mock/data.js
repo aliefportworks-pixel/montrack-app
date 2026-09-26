@@ -15,7 +15,8 @@
 
   window.MOCK_DATA = {
     users: [
-      { id: 'u-001', email: 'ayu@montrack.id', name: 'Ayu Pratama' },
+      /* password seed hanya untuk mode mock — BE menyimpan hash, bukan plaintext */
+      { id: 'u-001', email: 'ayu@montrack.id', name: 'Ayu Pratama', password: 'montrack123' },
     ],
     categories: [
       { id: 'c-01', name: 'Makanan', icon: '🍔' },

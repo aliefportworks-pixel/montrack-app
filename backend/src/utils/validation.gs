@@ -7,6 +7,10 @@ function isValidEmail_(v) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 }
 
+function isValidPassword_(v) {
+  return String(v || '').length >= 8;
+}
+
 function isValidDate_(v) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
   var p = v.split('-');

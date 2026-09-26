@@ -15,7 +15,7 @@ Aplikasi pencatat keuangan pribadi — SPA Vue 3 (single HTML) + backend Google 
 npx -y serve frontend -l 3000
 ```
 
-Buka http://localhost:3000 — login: `ayu@montrack.id` (mock). Jangan buka `fetch` via `file://`.
+Buka http://localhost:3000 — login mock: `ayu@montrack.id` / password `montrack123` (atau daftar email baru). Jangan buka `fetch` via `file://`.
 
 ## Verifikasi
 

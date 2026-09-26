@@ -56,6 +56,21 @@
     window.location.hash = path;
   }
 
+  /* Rute yang boleh dikunjungi tanpa sesi login */
+  function isPublicPath(path) {
+    return path === '/login' || path === '/daftar';
+  }
+
+  /* Token tidak ada/kedaluwarsa (BE membalas 'Sesi pengguna tidak valid.') → paksa logout */
+  function handleSessionError(err) {
+    if (err && err.message === 'Sesi pengguna tidak valid.') {
+      actions.showToast('Sesi berakhir. Silakan masuk kembali.', 'error');
+      actions.logout();
+      return true;
+    }
+    return false;
+  }
+
   var actions = {
     showToast: function (message, type) {
       store.toast = { message: message, type: type || 'success' };
@@ -81,8 +96,8 @@
       store.showBalance = !store.showBalance;
     },
 
-    login: async function (email) {
-      var res = await Api.login(email);
+    login: async function (email, password) {
+      var res = await Api.login(email, password);
       store.user = res.data;
       persistSession();
       await actions.loadData();
@@ -90,7 +105,33 @@
       return res.data;
     },
 
+    register: async function (email, password) {
+      var res = await Api.register(email, password);
+      store.user = res.data;
+      persistSession();
+      await actions.loadData();
+      navigate('/');
+      return res.data;
+    },
+
+    changePassword: async function (oldPassword, newPassword) {
+      var res = await Api.changePassword(
+        store.user.id,
+        store.user.token,
+        oldPassword,
+        newPassword
+      );
+      store.user = res.data;
+      persistSession();
+      return res.data;
+    },
+
     logout: function () {
+      var u = store.user;
+      if (u && u.token) {
+        /* cabut token di server (fire-and-forget; token mati/kadaluarsa → abaikan) */
+        Api.logout(u.id, u.token).catch(function () {});
+      }
       store.user = null;
       store.transactions = [];
       store.categories = [];
@@ -103,12 +144,15 @@
       if (!store.user) return;
       store.loading = true;
       try {
-        var results = await Promise.all([Api.getCategories(), Api.getTransactions(store.user.id)]);
+        var results = await Promise.all([
+          Api.getCategories(),
+          Api.getTransactions(store.user.id, store.user.token),
+        ]);
         store.categories = results[0].data;
         store.transactions = results[1].data;
         recomputeStats();
       } catch (err) {
-        actions.showToast(err.message || 'Gagal memuat data.', 'error');
+        if (!handleSessionError(err)) actions.showToast(err.message || 'Gagal memuat data.', 'error');
       } finally {
         store.loading = false;
       }
@@ -116,18 +160,29 @@
 
     saveTransaction: async function (payload) {
       payload.userId = store.user.id;
-      var res = await Api.createTransaction(payload);
-      store.transactions = [res.data].concat(
-        store.transactions.filter(function (t) {
-          return t.id !== res.data.id;
-        })
-      );
-      recomputeStats();
-      return res.data;
+      payload.token = store.user.token;
+      try {
+        var res = await Api.createTransaction(payload);
+        store.transactions = [res.data].concat(
+          store.transactions.filter(function (t) {
+            return t.id !== res.data.id;
+          })
+        );
+        recomputeStats();
+        return res.data;
+      } catch (err) {
+        handleSessionError(err);
+        throw err;
+      }
     },
 
     removeTransaction: async function (id) {
-      await Api.deleteTransaction(id, store.user.id);
+      try {
+        await Api.deleteTransaction(id, store.user.id, store.user.token);
+      } catch (err) {
+        handleSessionError(err);
+        throw err;
+      }
       store.transactions = store.transactions.filter(function (t) {
         return t.id !== id;
       });
@@ -137,11 +192,11 @@
     bootstrap: function () {
       restoreSession();
       store.route = parseRoute();
-      if (!store.user && store.route.path !== '/login') {
+      if (!store.user && !isPublicPath(store.route.path)) {
         navigate('/login');
         store.route = parseRoute();
       }
-      if (store.user && store.route.path === '/login') {
+      if (store.user && isPublicPath(store.route.path)) {
         navigate('/');
         store.route = parseRoute();
       }
@@ -151,11 +206,11 @@
 
   window.addEventListener('hashchange', function () {
     var next = parseRoute();
-    if (!store.user && next.path !== '/login') {
+    if (!store.user && !isPublicPath(next.path)) {
       navigate('/login');
       return;
     }
-    if (store.user && next.path === '/login') {
+    if (store.user && isPublicPath(next.path)) {
       navigate('/');
       return;
     }

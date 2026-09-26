@@ -1,7 +1,14 @@
 window.SettingsView = {
   name: 'SettingsView',
   data: function () {
-    return { icons: Icons };
+    return {
+      icons: Icons,
+      oldPassword: '',
+      newPassword: '',
+      confirmNew: '',
+      chError: '',
+      chSubmitting: false,
+    };
   },
   methods: {
     logout: function () {
@@ -13,6 +20,33 @@ window.SettingsView = {
           self.actions.logout();
         },
       });
+    },
+    changePassword: async function () {
+      this.chError = '';
+      if (!this.oldPassword || !this.newPassword || !this.confirmNew) {
+        this.chError = 'Password wajib diisi.';
+        return;
+      }
+      if (!this.$fmt.isValidPassword(this.newPassword)) {
+        this.chError = 'Password minimal 8 karakter.';
+        return;
+      }
+      if (this.newPassword !== this.confirmNew) {
+        this.chError = 'Password tidak cocok.';
+        return;
+      }
+      this.chSubmitting = true;
+      try {
+        await this.actions.changePassword(this.oldPassword, this.newPassword);
+        this.oldPassword = '';
+        this.newPassword = '';
+        this.confirmNew = '';
+        this.actions.showToast('Password berhasil diubah.', 'success');
+      } catch (err) {
+        this.chError = err.message || 'Gagal mengubah password. Coba lagi.';
+      } finally {
+        this.chSubmitting = false;
+      }
     },
   },
   computed: {
@@ -88,6 +122,54 @@ window.SettingsView = {
           Pencatatan keuangan pribadi ringan. Seluruh data disimpan di Google Sheets milik Anda,
           tanpa server database pihak ketiga.
         </p>
+      </section>
+
+      <section class="bg-surface border border-edge rounded-panel p-4 mb-6">
+        <p class="text-xs font-semibold text-secondary uppercase tracking-wide mb-3">Ganti Password</p>
+        <label for="old-password" class="block text-xs font-medium text-secondary mb-2">Password Lama</label>
+        <input
+          id="old-password"
+          v-model="oldPassword"
+          type="password"
+          autocomplete="current-password"
+          placeholder="Password saat ini"
+          class="w-full bg-background border rounded-box px-4 py-3 text-sm text-primary placeholder:text-secondary/70
+                 outline-none focus:border-chart transition mb-3"
+          :class="chError ? 'border-danger' : 'border-edge'"
+        />
+        <label for="new-password" class="block text-xs font-medium text-secondary mb-2">Password Baru</label>
+        <input
+          id="new-password"
+          v-model="newPassword"
+          type="password"
+          autocomplete="new-password"
+          placeholder="Minimal 8 karakter"
+          class="w-full bg-background border rounded-box px-4 py-3 text-sm text-primary placeholder:text-secondary/70
+                 outline-none focus:border-chart transition mb-3"
+          :class="chError ? 'border-danger' : 'border-edge'"
+        />
+        <label for="confirm-new-password" class="block text-xs font-medium text-secondary mb-2">Ulangi Password Baru</label>
+        <input
+          id="confirm-new-password"
+          v-model="confirmNew"
+          type="password"
+          autocomplete="new-password"
+          placeholder="Ketik ulang password baru"
+          class="w-full bg-background border rounded-box px-4 py-3 text-sm text-primary placeholder:text-secondary/70
+                 outline-none focus:border-chart transition"
+          :class="chError ? 'border-danger' : 'border-edge'"
+        />
+        <p v-if="chError" class="text-xs text-danger mt-3">{{ chError }}</p>
+        <button
+          type="button"
+          class="w-full mt-4 bg-primary text-background font-semibold text-sm rounded-box min-h-[44px]
+                 flex items-center justify-center gap-2 active:opacity-80 transition"
+          :disabled="chSubmitting"
+          @click="changePassword"
+        >
+          <spinner-component v-if="chSubmitting" />
+          <span v-else>Simpan Password Baru</span>
+        </button>
       </section>
 
       <button

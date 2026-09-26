@@ -45,7 +45,7 @@ Nilai tambah utama Montrack terletak pada transparansi dan kedaulatan data melal
 
 | ID | User Story | Acceptance Criteria | Priority |
 | --- | --- | --- | --- |
-| US-01 | Sebagai Pengguna, saya ingin masuk ke aplikasi menggunakan identitas unik, sehingga data saya tidak bercampur dengan orang lain. | 1. Sistem memvalidasi ID/Email. 2. Data dimuat sesuai ID pengguna. | MVP |
+| US-01 | Sebagai Pengguna, saya ingin masuk ke aplikasi menggunakan email dan password, sehingga data saya tidak bercampur dengan orang lain dan tidak bisa dibuka pihak lain. | 1. Sistem memvalidasi email + password. 2. Sesi berupa token (30 hari). 3. Data dimuat sesuai ID pengguna. | MVP |
 | US-02 | Sebagai Pengguna, saya ingin mencatat pengeluaran baru dengan cepat, sehingga saya tidak lupa detail transaksi. | 1. Input jumlah, kategori, dan catatan. 2. Notifikasi sukses muncul setelah simpan. | MVP |
 | US-03 | Sebagai Pengguna, saya ingin mencatat pemasukan, sehingga saya tahu total aliran dana masuk. | 1. Pilihan tipe transaksi 'Pemasukan'. 2. Saldo otomatis bertambah di dashboard. | MVP |
 | US-04 | Sebagai Pengguna, saya ingin melihat ringkasan saldo total, sehingga saya tahu kondisi keuangan saat ini. | 1. Menampilkan total saldo (Pemasukan - Pengeluaran). 2. Update otomatis setiap ada transaksi baru. | MVP |
@@ -89,7 +89,9 @@ Nilai tambah utama Montrack terletak pada transparansi dan kedaulatan data melal
 
 | Feature ID | Feature Name | Detailed Description | Inputs | Outputs | Validation Rules | Data Structure (Google Sheets) |
 | --- | --- | --- | --- | --- | --- | --- |
-| FR-01 | Auth Sederhana | Identifikasi pengguna berbasis email/ID unik untuk akses data. | Email/ID String | Akses ke Dashboard | Wajib diisi, format email valid. | Sheet: 'Users' (ID, Email, Name) |
+| FR-01 | Login (Email + Password) | Masuk ke aplikasi memakai email + password; server menerbitkan session token 30 hari. | Email, Password | Akses ke Dashboard + token sesi | Email valid; password wajib; kredensial salah → 'Email atau password salah.'. | Sheet: 'Users' (ID, Email, Name, PasswordHash, Token, TokenExpiresAt) |
+| FR-07 | Registrasi | Halaman Daftar (#/daftar): buat akun email + password; email lama tanpa password didaftarkan ulang dengan ID & data lama dipakai ulang. | Email, Password (min 8, konfirmasi) | Baris baru di Users + auto-login | Email belum terdaftar; password ≥ 8 karakter; duplikat → 'Email sudah terdaftar.'. | Sheet: 'Users' (kolom sama dgn FR-01) |
+| FR-08 | Ganti Password | Form di Pengaturan: password lama → password baru. | Password lama, password baru (×2) | PasswordHash diganti | Password lama benar; password baru ≥ 8 karakter. | Sheet: 'Users' (PasswordHash) |
 | FR-02 | Input Transaksi | Modul untuk memasukkan data arus kas. | Nominal, Tipe (In/Out), Kategori, Tanggal, Catatan | Baris data baru di Sheets | Nominal > 0, Kategori wajib dipilih. | Sheet: 'Transactions' (ID, Date, Type, Category, Amount, Note) |
 | FR-03 | Dashboard Visual | Ringkasan kondisi keuangan dalam bentuk angka dan grafik. | Data dari Sheets | Total Saldo, Grafik Pie Kategori | Kalkulasi otomatis (Sum In - Sum Out). | N/A (Computed Data) |
 | FR-04 | Riwayat Data | Tabel list transaksi yang pernah diinput. | Filter/Search Query | List item transaksi | Menampilkan 20 data terbaru (pagination). | Sheet: 'Transactions' |
@@ -111,7 +113,8 @@ Nilai tambah utama Montrack terletak pada transparansi dan kedaulatan data melal
     *   Respon API Google Apps Script harus ditangani secara asinkron agar tidak memblokir UI.
 *   **Security:**
     *   Akses ke Google Apps Script wajib menggunakan API Key atau validasi token sederhana.
-    *   Data sensitif tidak boleh disimpan di *LocalStorage* dalam bentuk teks biasa.
+    *   Password disimpan sebagai hash (SHA-256 + salt) — tidak pernah plaintext, dan tidak pernah dikirim lewat query string URL.
+    *   LocalStorage hanya berisi profil + token sesi (bukan password); token kedaluwarsa 30 hari dan dapat dicabut via logout.
     *   Validasi input di sisi server (GAS) untuk mencegah *script injection* ke Google Sheets.
 *   **Compatibility:**
     *   Mendukung browser mobile modern (Chrome Mobile, Safari iOS, Samsung Internet).

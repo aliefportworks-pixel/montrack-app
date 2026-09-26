@@ -50,6 +50,10 @@ window.Utils = {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
   },
 
+  isValidPassword: function (password) {
+    return String(password || '').length >= 8;
+  },
+
   uid: function (prefix) {
     return (
       prefix +

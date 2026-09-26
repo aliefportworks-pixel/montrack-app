@@ -25,6 +25,7 @@ function handleRequest_(method, e) {
     if (keyStatus !== true) return jsonOut_(fail_(keyStatus));
 
     ensureDb_();
+    ensureUsersSchema_();
     ensureProjectFolder_();
 
     var body = parseBody_(e);
@@ -75,7 +76,7 @@ function ensureDb_() {
 
   var users = ss.getSheets()[0];
   users.setName('Users');
-  users.getRange(1, 1, 1, 3).setValues([['ID', 'Email', 'Name']]);
+  users.getRange(1, 1, 1, 6).setValues([USERS_HEADERS_]);
 
   var tx = ss.insertSheet('Transactions');
   tx.getRange(1, 1, 1, 8).setValues([
@@ -91,6 +92,29 @@ function ensureDb_() {
 
   props.setProperty('MONTRACK_SHEET_ID', ss.getId());
   DB_CACHE_ = ss;
+}
+
+/* ---------------- Skema Users (idempoten — legacy 3 kolom → 6 kolom) ---------------- */
+
+var USERS_HEADERS_ = ['ID', 'Email', 'Name', 'PasswordHash', 'Token', 'TokenExpiresAt'];
+
+/**
+ * Tambah kolom auth yang belum ada pada sheet Users lama (ID, Email, Name).
+ * Jalan setiap request — satu baca baris 1 saja; bila kolom sudah lengkap, no-op.
+ */
+function ensureUsersSchema_() {
+  var sh = getDb_().getSheetByName('Users');
+  if (!sh) return;
+  var lastCol = sh.getLastColumn();
+  var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) {
+    return String(h);
+  });
+  var missing = [];
+  for (var i = 0; i < USERS_HEADERS_.length; i++) {
+    if (headers.indexOf(USERS_HEADERS_[i]) === -1) missing.push(USERS_HEADERS_[i]);
+  }
+  if (!missing.length) return;
+  sh.getRange(1, lastCol + 1, 1, missing.length).setValues([missing]);
 }
 
 /* ---------------- Folder proyek di Google Drive (otomatis, idempoten) ---------------- */

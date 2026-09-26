@@ -177,6 +177,13 @@ global.Utilities = {
       const v = ch === 'x' ? r : (r & 0x3) | 0x8;
       return v.toString(16);
     }),
+  DigestAlgorithm: { SHA_256: 'SHA_256' },
+  Charset: { UTF_8: 'UTF_8' },
+  /* byte signed ala GAS — toHex_ di auth.gs harus menanganinya */
+  computeDigest: (alg, text) =>
+    [...require('crypto').createHash('sha256').update(String(text), 'utf8').digest()].map(
+      (b) => (b > 127 ? b - 256 : b)
+    ),
 };
 
 global.ContentService = {
@@ -191,7 +198,7 @@ global.ContentService = {
 /* ---------------- Load source .gs ---------------- */
 
 const src = path.join(__dirname, 'backend', 'src');
-for (const f of ['Code.gs', 'routes.gs', 'utils/validation.gs', 'utils/sheets.gs']) {
+for (const f of ['Code.gs', 'routes.gs', 'utils/validation.gs', 'utils/sheets.gs', 'utils/auth.gs']) {
   eval(fs.readFileSync(path.join(src, f), 'utf8'));
 }
 
@@ -238,25 +245,97 @@ function call(method, e) {
   assert.strictEqual(driveFolderCreates_, 1, 'idempoten — tidak dibuat dua kali');
 
   // 4. Auth: email invalid
-  res = call('POST', { parameter: { action: 'auth', key }, postData: { contents: JSON.stringify({ email: 'bukan-email' }) } });
+  res = call('POST', { parameter: { action: 'auth', key }, postData: { contents: JSON.stringify({ email: 'bukan-email', password: 'rahasia123' }) } });
   assert.strictEqual(res.message, 'Format email tidak valid.');
 
-  // 5. Auth: auto-register
-  res = call('POST', { parameter: { action: 'auth', key }, postData: { contents: JSON.stringify({ email: 'budi.santoso@example.com' }) } });
+  // 4b. Auth: tanpa password (mis. body dibuang redirect GAS)
+  res = call('POST', { parameter: { action: 'auth', key, email: 'budi.santoso@example.com' } });
+  assert.strictEqual(res.message, 'Password wajib diisi.');
+
+  // 4c. Auth: email belum terdaftar → tidak boleh bocor info akun
+  res = call('POST', { parameter: { action: 'auth', key }, postData: { contents: JSON.stringify({ email: 'belum-ada@example.com', password: 'rahasia123' }) } });
+  assert.strictEqual(res.message, 'Email atau password salah.');
+
+  // 4d. Register: password terlalu pendek
+  res = call('POST', { parameter: { action: 'register', key }, postData: { contents: JSON.stringify({ email: 'budi.santoso@example.com', password: 'abc' }) } });
+  assert.strictEqual(res.message, 'Password minimal 8 karakter.');
+
+  // 5. Register: user baru → auto-login + token
+  res = call('POST', { parameter: { action: 'register', key }, postData: { contents: JSON.stringify({ email: 'budi.santoso@example.com', password: 'rahasia123' }) } });
   assert.strictEqual(res.success, true);
   assert.strictEqual(res.data.name, 'Budi Santoso');
+  assert.ok(res.data.token && res.data.token.length >= 32, 'token diterbitkan');
   const userId = res.data.id;
+  let token = res.data.token;
 
-  // 6. Auth: login ulang → id sama
-  res = call('POST', { parameter: { action: 'auth', key }, postData: { contents: JSON.stringify({ email: 'budi.santoso@example.com' }) } });
+  // 5b. Register duplikat → tolak
+  res = call('POST', { parameter: { action: 'register', key }, postData: { contents: JSON.stringify({ email: 'budi.santoso@example.com', password: 'lainnya12345' }) } });
+  assert.strictEqual(res.message, 'Email sudah terdaftar.');
+
+  // 5c. Auth: login password salah
+  res = call('POST', { parameter: { action: 'auth', key }, postData: { contents: JSON.stringify({ email: 'budi.santoso@example.com', password: 'salah-salah' }) } });
+  assert.strictEqual(res.message, 'Email atau password salah.');
+
+  // 5d. Auth: login benar → id sama, token baru
+  res = call('POST', { parameter: { action: 'auth', key }, postData: { contents: JSON.stringify({ email: 'budi.santoso@example.com', password: 'rahasia123' }) } });
+  assert.strictEqual(res.success, true);
   assert.strictEqual(res.data.id, userId);
+  token = res.data.token;
+  assert.ok(token);
+
+  // 5e. Legacy user (baris lama tanpa PasswordHash): login ditolak, daftar ulang pakai ID lama
+  call('POST', { parameter: { action: 'register', key }, postData: { contents: JSON.stringify({ email: 'legacy@montrack.id', password: 'legacy-12345' }) } });
+  const legacyRow = dbBook.getSheetByName('Users')._data.find((r) => String(r[1]) === 'legacy@montrack.id');
+  const legacyId = legacyRow[0];
+  legacyRow[3] = ''; legacyRow[4] = ''; legacyRow[5] = ''; // simulasi baris pra-password
+  res = call('POST', { parameter: { action: 'auth', key }, postData: { contents: JSON.stringify({ email: 'legacy@montrack.id', password: 'legacy-12345' }) } });
+  assert.strictEqual(res.message, 'Akun ini belum diatur password. Silakan daftar ulang.');
+  res = call('POST', { parameter: { action: 'register', key }, postData: { contents: JSON.stringify({ email: 'legacy@montrack.id', password: 'baru-123456' }) } });
+  assert.strictEqual(res.success, true, 'daftar ulang legacy sukses');
+  assert.strictEqual(res.data.id, legacyId, 'ID & data lama tetap dipakai');
+  const legacyToken = res.data.token;
+
+  // 5f. GET auth (toleransi redirect) — password tidak pernah di query
+  res = call('GET', { parameter: { action: 'auth', key, email: 'fitri@example.com' } });
+  assert.strictEqual(res.message, 'Password wajib diisi.');
+
+  // 5g. Logout mencabut token
+  res = call('POST', { parameter: { action: 'logout', key, userId, token } });
+  assert.deepStrictEqual(res, { success: true, data: { loggedOut: true } });
+  res = call('GET', { parameter: { action: 'transactions', key, userId, token } });
+  assert.strictEqual(res.message, 'Sesi pengguna tidak valid.', 'token lama setelah logout');
+  res = call('POST', { parameter: { action: 'auth', key }, postData: { contents: JSON.stringify({ email: 'budi.santoso@example.com', password: 'rahasia123' }) } });
+  token = res.data.token;
+
+  // 5h. Ganti password
+  res = call('POST', {
+    parameter: { action: 'change_password', key, userId, token },
+    postData: { contents: JSON.stringify({ oldPassword: 'salah-salah', newPassword: 'barubanget1' }) },
+  });
+  assert.strictEqual(res.message, 'Password lama salah.');
+  res = call('POST', {
+    parameter: { action: 'change_password', key, userId, token },
+    postData: { contents: JSON.stringify({ oldPassword: 'rahasia123', newPassword: 'abc' }) },
+  });
+  assert.strictEqual(res.message, 'Password minimal 8 karakter.');
+  res = call('POST', {
+    parameter: { action: 'change_password', key, userId, token },
+    postData: { contents: JSON.stringify({ oldPassword: 'rahasia123', newPassword: 'barubanget1' }) },
+  });
+  assert.strictEqual(res.success, true);
+  assert.strictEqual(res.data.token, token, 'token tetap setelah ganti password');
+  res = call('POST', { parameter: { action: 'auth', key }, postData: { contents: JSON.stringify({ email: 'budi.santoso@example.com', password: 'rahasia123' }) } });
+  assert.strictEqual(res.message, 'Email atau password salah.', 'password lama mati');
+  res = call('POST', { parameter: { action: 'auth', key }, postData: { contents: JSON.stringify({ email: 'budi.santoso@example.com', password: 'barubanget1' }) } });
+  assert.strictEqual(res.success, true, 'password baru bisa dipakai');
+  token = res.data.token;
 
   // 7. Create valid
   res = call('POST', {
     parameter: { action: 'transactions', key },
     postData: {
       contents: JSON.stringify({
-        userId, type: 'out', category: 'Makanan', date: '2026-09-23', amount: 50000, note: 'Makan siang',
+        userId, token, type: 'out', category: 'Makanan', date: '2026-09-23', amount: 50000, note: 'Makan siang',
       }),
     },
   });
@@ -273,36 +352,44 @@ function call(method, e) {
     assert.strictEqual(r.success, false, 'seharusnya gagal: ' + msg);
     assert.strictEqual(r.message, msg);
   };
-  await expectFail({ userId, type: 'out', category: 'Makanan', date: '2026-09-23', amount: 0 }, 'Nominal harus lebih dari 0.');
-  await expectFail({ userId, type: 'out', category: '', date: '2026-09-23', amount: 1000 }, 'Kategori wajib dipilih.');
-  await expectFail({ userId, type: 'out', category: 'Makanan', date: '', amount: 1000 }, 'Tanggal wajib diisi.');
-  await expectFail({ userId, type: 'xx', category: 'Makanan', date: '2026-09-23', amount: 1000 }, 'Tipe transaksi tidak valid.');
-  await expectFail({ userId: 'u-tidak-ada', type: 'out', category: 'Makanan', date: '2026-09-23', amount: 1000 }, 'Sesi pengguna tidak valid.');
+  await expectFail({ userId, token, type: 'out', category: 'Makanan', date: '2026-09-23', amount: 0 }, 'Nominal harus lebih dari 0.');
+  await expectFail({ userId, token, type: 'out', category: '', date: '2026-09-23', amount: 1000 }, 'Kategori wajib dipilih.');
+  await expectFail({ userId, token, type: 'out', category: 'Makanan', date: '', amount: 1000 }, 'Tanggal wajib diisi.');
+  await expectFail({ userId, token, type: 'xx', category: 'Makanan', date: '2026-09-23', amount: 1000 }, 'Tipe transaksi tidak valid.');
+  await expectFail({ userId: 'u-tidak-ada', token, type: 'out', category: 'Makanan', date: '2026-09-23', amount: 1000 }, 'Sesi pengguna tidak valid.');
+  await expectFail({ userId, type: 'out', category: 'Makanan', date: '2026-09-23', amount: 1000 }, 'Sesi pengguna tidak valid.', 'tanpa token');
+  await expectFail({ userId, token: 'token-salah', type: 'out', category: 'Makanan', date: '2026-09-23', amount: 1000 }, 'Sesi pengguna tidak valid.', 'token salah');
 
-  // 9. List: hanya milik user + sort desc
-  res = call('GET', { parameter: { action: 'transactions', key, userId } });
+  // 9. List: hanya milik user + sort desc + wajib token
+  res = call('GET', { parameter: { action: 'transactions', key, userId, token } });
   assert.strictEqual(res.success, true);
   assert.strictEqual(res.data.length, 1);
-  res = call('GET', { parameter: { action: 'transactions', key, userId: 'u-lain' } });
-  assert.strictEqual(res.data.length, 0);
+  res = call('GET', { parameter: { action: 'transactions', key, userId, token: 'token-salah' } });
+  assert.strictEqual(res.message, 'Sesi pengguna tidak valid.', 'token salah ditolak');
+  // user lain (terdaftar) — miliknya tetap kosong, isolasi antar user
+  res = call('POST', { parameter: { action: 'register', key }, postData: { contents: JSON.stringify({ email: 'lina@example.com', password: 'linalina123' }) } });
+  const linaId = res.data.id;
+  const linaToken = res.data.token;
+  res = call('GET', { parameter: { action: 'transactions', key, userId: linaId, token: linaToken } });
+  assert.strictEqual(res.data.length, 0, 'user lain tanpa transaksi');
   res = call('GET', { parameter: { action: 'transactions', key } });
   assert.strictEqual(res.message, 'Sesi pengguna tidak valid.');
 
   // Tambah transaksi tanggal lain untuk uji sort
   call('POST', {
     parameter: { action: 'transactions', key },
-    postData: { contents: JSON.stringify({ userId, type: 'in', category: 'Gaji', date: '2026-09-01', amount: 1000, note: 'Gaji' }) },
+    postData: { contents: JSON.stringify({ userId, token, type: 'in', category: 'Gaji', date: '2026-09-01', amount: 1000, note: 'Gaji' }) },
   });
-  res = call('GET', { parameter: { action: 'transactions', key, userId } });
+  res = call('GET', { parameter: { action: 'transactions', key, userId, token } });
   assert.strictEqual(res.data.length, 2);
   assert.strictEqual(res.data[0].date, '2026-09-23', 'terbaru dulu');
 
   // 10. Anti formula injection
   call('POST', {
     parameter: { action: 'transactions', key },
-    postData: { contents: JSON.stringify({ userId, type: 'out', category: 'Lainnya', date: '2026-09-20', amount: 1000, note: '=SUM(A1:A9)' }) },
+    postData: { contents: JSON.stringify({ userId, token, type: 'out', category: 'Lainnya', date: '2026-09-20', amount: 1000, note: '=SUM(A1:A9)' }) },
   });
-  res = call('GET', { parameter: { action: 'transactions', key, userId } });
+  res = call('GET', { parameter: { action: 'transactions', key, userId, token } });
   const evil = res.data.find((t) => t.note && t.note.indexOf('SUM') !== -1);
   assert.ok(evil, 'transaksi catatan formula tersimpan');
   assert.ok(evil.note.startsWith("'"), 'note diprefix apostrof, got: ' + evil.note);
@@ -310,26 +397,24 @@ function call(method, e) {
   // 11. Tanggal objek Date dinormalisasi ke ISO
   const txFake = dbBook.getSheetByName('Transactions');
   txFake._data.splice(1, 0, ['t-fake', userId, new Date(2026, 8, 10), 'out', 'Lainnya', 5000, '', '']);
-  res = call('GET', { parameter: { action: 'transactions', key, userId } });
+  res = call('GET', { parameter: { action: 'transactions', key, userId, token } });
   const fake = res.data.find((t) => t.id === 't-fake');
   assert.strictEqual(fake.date, '2026-09-10');
 
   // 12. Delete
-  res = call('POST', { parameter: { action: 'delete_transaction', key, id: txId, userId } });
+  res = call('POST', { parameter: { action: 'delete_transaction', key, id: txId, userId, token } });
   assert.deepStrictEqual(res, { success: true, data: { deleted: true } });
-  res = call('POST', { parameter: { action: 'delete_transaction', key, id: txId, userId } });
+  res = call('POST', { parameter: { action: 'delete_transaction', key, id: txId, userId, token } });
   assert.strictEqual(res.message, 'Transaksi tidak ditemukan.');
-  res = call('POST', { parameter: { action: 'delete_transaction', key, id: 't-fake', userId: 'u-lain' } });
-  assert.strictEqual(res.message, 'Transaksi tidak ditemukan.', 'delete harus cocok userId');
+  res = call('POST', { parameter: { action: 'delete_transaction', key, id: 't-fake', userId: linaId, token: linaToken } });
+  assert.strictEqual(res.message, 'Transaksi tidak ditemukan.', 'sesi valid tapi baris bukan miliknya');
+  res = call('POST', { parameter: { action: 'delete_transaction', key, id: txId, userId: linaId, token: 'token-salah' } });
+  assert.strictEqual(res.message, 'Sesi pengguna tidak valid.', 'token salah ditolak');
 
-  // 12b. Toleransi redirect GAS: auth/create/delete diterima via GET (query penuh)
-  res = call('GET', { parameter: { action: 'auth', key, email: 'fitri@example.com' } });
-  assert.strictEqual(res.success, true);
-  assert.strictEqual(res.data.email, 'fitri@example.com');
-
+  // 12b. Toleransi redirect GAS: create/delete diterima via GET (query penuh, token ikut query)
   res = call('GET', {
     parameter: {
-      action: 'create_transaction', key, userId,
+      action: 'create_transaction', key, userId, token,
       type: 'in', category: 'Freelance', date: '2026-09-22', amount: 77000, note: 'via-query',
     },
   });
@@ -337,7 +422,7 @@ function call(method, e) {
   assert.strictEqual(res.data.amount, 77000);
   const qTxId = res.data.id;
 
-  res = call('GET', { parameter: { action: 'delete_transaction', key, id: qTxId, userId } });
+  res = call('GET', { parameter: { action: 'delete_transaction', key, id: qTxId, userId, token } });
   assert.deepStrictEqual(res, { success: true, data: { deleted: true } });
 
   // 12c. create_transaction via POST (merge query+body, body menang)
@@ -345,13 +430,13 @@ function call(method, e) {
     parameter: { action: 'create_transaction', key, amount: '1' },
     postData: {
       contents: JSON.stringify({
-        userId, type: 'out', category: 'Makanan', date: '2026-09-24', amount: 42000, note: 'merge',
+        userId, token, type: 'out', category: 'Makanan', date: '2026-09-24', amount: 42000, note: 'merge',
       }),
     },
   });
   assert.strictEqual(res.success, true);
   assert.strictEqual(res.data.amount, 42000, 'body menang atas query');
-  call('POST', { parameter: { action: 'delete_transaction', key, id: res.data.id, userId } });
+  call('POST', { parameter: { action: 'delete_transaction', key, id: res.data.id, userId, token } });
 
   // 13. Endpoint tak dikenal
   res = call('GET', { parameter: { action: 'unknown', key } });

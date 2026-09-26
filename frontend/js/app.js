@@ -2,6 +2,7 @@
 (function () {
   var viewByPath = {
     '/login': 'login-view',
+    '/daftar': 'register-view',
     '/': 'home-view',
     '/transaksi': 'transaction-form-view',
     '/riwayat': 'history-view',
@@ -40,6 +41,7 @@
         return (
           !!this.store.user &&
           this.store.route.path !== '/login' &&
+          this.store.route.path !== '/daftar' &&
           this.store.route.path !== '/transaksi'
         );
       },
@@ -64,6 +66,7 @@
   app.component('quick-actions', window.QuickActions);
   app.component('transaction-item', window.TransactionItem);
   app.component('login-view', window.LoginView);
+  app.component('register-view', window.RegisterView);
   app.component('home-view', window.HomeView);
   app.component('transaction-form-view', window.TransactionFormView);
   app.component('history-view', window.HistoryView);

@@ -1,9 +1,10 @@
-window.LoginView = {
-  name: 'LoginView',
+window.RegisterView = {
+  name: 'RegisterView',
   data: function () {
     return {
       email: '',
       password: '',
+      confirm: '',
       showPassword: false,
       error: '',
       submitting: false,
@@ -27,11 +28,20 @@ window.LoginView = {
         this.error = 'Password wajib diisi.';
         return;
       }
+      if (!this.$fmt.isValidPassword(password)) {
+        this.error = 'Password minimal 8 karakter.';
+        return;
+      }
+      if (password !== this.confirm) {
+        this.error = 'Password tidak cocok.';
+        return;
+      }
       this.submitting = true;
       try {
-        await this.actions.login(email, password);
+        await this.actions.register(email, password);
+        this.actions.showToast('Akun berhasil dibuat. Selamat datang!', 'success');
       } catch (err) {
-        this.error = err.message || 'Gagal masuk. Coba lagi.';
+        this.error = err.message || 'Gagal mendaftar. Coba lagi.';
       } finally {
         this.submitting = false;
       }
@@ -48,17 +58,18 @@ window.LoginView = {
         </div>
 
         <h1 class="font-bold leading-tight" style="font-size:32px;letter-spacing:-0.02em">
-          Montrack
+          Buat Akun
         </h1>
         <p class="text-secondary text-sm mt-2 mb-8 leading-relaxed">
-          Catat keuangan pribadi dalam hitungan detik. Data Anda tersimpan di Google Sheets milik Anda sendiri.
+          Daftar dengan email + password untuk mulai mencatat. Punya data lama dengan email sama?
+          Daftar memakai email tersebut — transaksi lama otomatis terpakai.
         </p>
 
         <form @submit.prevent="submit" novalidate>
-          <label for="email" class="block text-xs font-medium text-secondary mb-2">Email</label>
+          <label for="reg-email" class="block text-xs font-medium text-secondary mb-2">Email</label>
           <div class="relative mb-4">
             <input
-              id="email"
+              id="reg-email"
               v-model="email"
               type="email"
               inputmode="email"
@@ -70,13 +81,13 @@ window.LoginView = {
             />
           </div>
 
-          <label for="password" class="block text-xs font-medium text-secondary mb-2">Password</label>
-          <div class="relative mb-2">
+          <label for="reg-password" class="block text-xs font-medium text-secondary mb-2">Password</label>
+          <div class="relative mb-4">
             <input
-              id="password"
+              id="reg-password"
               v-model="password"
               :type="showPassword ? 'text' : 'password'"
-              autocomplete="current-password"
+              autocomplete="new-password"
               placeholder="Minimal 8 karakter"
               class="w-full bg-surface border rounded-box px-4 py-3.5 pr-12 text-sm text-primary placeholder:text-secondary/70
                      outline-none focus:border-chart transition"
@@ -91,6 +102,20 @@ window.LoginView = {
               {{ showPassword ? 'Sembunyikan' : 'Lihat' }}
             </button>
           </div>
+
+          <label for="reg-confirm" class="block text-xs font-medium text-secondary mb-2">Ulangi Password</label>
+          <div class="relative mb-2">
+            <input
+              id="reg-confirm"
+              v-model="confirm"
+              :type="showPassword ? 'text' : 'password'"
+              autocomplete="new-password"
+              placeholder="Ketik ulang password"
+              class="w-full bg-surface border rounded-box px-4 py-3.5 text-sm text-primary placeholder:text-secondary/70
+                     outline-none focus:border-chart transition"
+              :class="error ? 'border-danger' : 'border-edge'"
+            />
+          </div>
           <p v-if="error" class="text-xs text-danger mb-4">{{ error }}</p>
           <div v-else class="h-4"></div>
 
@@ -101,18 +126,13 @@ window.LoginView = {
             :disabled="submitting"
           >
             <spinner-component v-if="submitting" />
-            <span v-else>Masuk</span>
+            <span v-else>Daftar</span>
           </button>
         </form>
 
         <p class="text-sm text-secondary text-center mt-6">
-          Belum punya akun?
-          <a href="#/daftar" class="text-chart font-semibold">Daftar</a>
-        </p>
-
-        <p class="text-[11px] text-secondary text-center mt-4 leading-relaxed">
-          FR-01 · Masuk dengan email + password.<br />
-          Belum terdaftar? Daftar dulu — data lama tetap terpakai bila email sama.
+          Sudah punya akun?
+          <a href="#/login" class="text-chart font-semibold">Masuk</a>
         </p>
       </div>
     </main>
